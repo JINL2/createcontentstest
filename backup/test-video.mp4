@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Video</title>
+</head>
+<body>
+    <h1>This is a test HTML file acting as a video</h1>
+    <p>Since we can't create actual video files, this HTML file will serve as a test.</p>
+</body>
+</html>

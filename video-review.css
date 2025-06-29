@@ -1,0 +1,537 @@
+/* ===========================
+   Video Review - Tinder Style
+   =========================== */
+
+.review-container {
+    min-height: 100vh;
+    background: #000;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+}
+
+/* 헤더 스타일 */
+.review-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.back-button {
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: #fff;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.back-button:hover {
+    background: rgba(255,255,255,0.2);
+    transform: scale(1.1);
+}
+
+.review-progress {
+    flex: 1;
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.streak-info {
+    color: #ff6b35;
+    font-weight: bold;
+}
+
+.progress-bar-slim {
+    height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.progress-fill-slim {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6b35 0%, #ff9558 100%);
+    transition: width 0.3s ease;
+}
+
+.points-earned {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,183,53,0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: bold;
+}
+
+/* 비디오 뷰어 */
+.video-viewer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 120px; /* 컨트롤 공간 확보 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.video-player {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.video-player video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+/* 비디오 정보 오버레이 */
+.video-info-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+    padding: 2rem 1rem 1rem;
+    pointer-events: none;
+}
+
+.creator-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.creator-avatar {
+    width: 40px;
+    height: 40px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.creator-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.creator-name {
+    font-weight: bold;
+    color: #fff;
+}
+
+.upload-time {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.6);
+}
+
+.video-title {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+.video-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.video-tag {
+    background: rgba(255,255,255,0.1);
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.8);
+}
+
+/* 평가 컨트롤 */
+.review-controls {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #1a1a1a;
+    padding: 1.5rem 1rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.action-button {
+    background: rgba(255,255,255,0.05);
+    border: 2px solid rgba(255,255,255,0.1);
+    color: #fff;
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.action-button.skip {
+    border-color: #ff4458;
+    color: #ff4458;
+}
+
+.action-button.skip:hover,
+.action-button.skip:active {
+    background: rgba(255,68,88,0.2);
+    transform: scale(1.1);
+}
+
+.action-button.like {
+    border-color: #42c767;
+    color: #42c767;
+}
+
+.action-button.like:hover,
+.action-button.like:active {
+    background: rgba(66,199,103,0.2);
+    transform: scale(1.1);
+}
+
+.action-icon {
+    font-size: 1.5rem;
+}
+
+.action-text {
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* 별점 평가 */
+.rating-container {
+    text-align: center;
+    padding: 1rem;
+}
+
+.rating-title {
+    color: #fff;
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+.star-rating {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.star {
+    font-size: 3rem;
+    cursor: pointer;
+    filter: grayscale(100%);
+    opacity: 0.3;
+    transition: all 0.2s ease;
+}
+
+.star:hover,
+.star.active {
+    filter: grayscale(0%);
+    opacity: 1;
+    transform: scale(1.2);
+}
+
+.rating-hint {
+    font-size: 1rem;
+    color: rgba(255,255,255,0.8);
+    margin: 0;
+}
+
+/* 댓글 섹션 */
+.comment-section {
+    position: fixed;
+    bottom: 120px;
+    left: 0;
+    right: 0;
+    background: rgba(0,0,0,0.9);
+    padding: 1rem;
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.comment-input-container {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.comment-input {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #fff;
+    padding: 0.75rem 1rem;
+    border-radius: 25px;
+    font-size: 0.95rem;
+}
+
+.comment-input::placeholder {
+    color: rgba(255,255,255,0.4);
+}
+
+.comment-submit {
+    background: #ff6b35;
+    border: none;
+    color: #fff;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.comment-submit:hover {
+    background: #ff8555;
+    transform: scale(1.1);
+}
+
+/* 로딩 상태 */
+.loading-state {
+    text-align: center;
+    color: rgba(255,255,255,0.6);
+}
+
+.spinner-large {
+    width: 50px;
+    height: 50px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: #ff6b35;
+    border-radius: 50%;
+    margin: 0 auto 1rem;
+    animation: spin 1s linear infinite;
+}
+
+/* 빈 상태 */
+.empty-state {
+    text-align: center;
+    padding: 2rem;
+}
+
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-state h3 {
+    color: #fff;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 1.5rem;
+}
+
+/* 애니메이션 */
+@keyframes slideInUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutLeft {
+    from {
+        transform: translateX(0) rotate(0deg);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(-150%) rotate(-30deg);
+        opacity: 0;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0) rotate(0deg);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(150%) rotate(30deg);
+        opacity: 0;
+    }
+}
+
+.video-player.swipe-left {
+    animation: slideOutLeft 0.3s ease-out forwards;
+}
+
+.video-player.swipe-right {
+    animation: slideOutRight 0.3s ease-out forwards;
+}
+
+/* Fade out 애니메이션 */
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+.video-player.fade-out {
+    animation: fadeOut 0.5s ease-out forwards;
+}
+
+/* 포인트 애니메이션 */
+.points-animation {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 200;
+    display: none;
+}
+
+.animated-points {
+    font-size: 3rem;
+    font-weight: bold;
+    color: #ffb735;
+    text-shadow: 0 0 20px rgba(255,183,53,0.5);
+    animation: pointsPop 1s ease-out;
+}
+
+@keyframes pointsPop {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1) translateY(-50px);
+        opacity: 0;
+    }
+}
+
+/* 연속 평가 애니메이션 */
+.streak-animation {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 200;
+    text-align: center;
+    display: none;
+}
+
+.streak-fire {
+    font-size: 4rem;
+    animation: fireShake 0.5s ease-out infinite;
+}
+
+.streak-text {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #ff6b35;
+    margin-top: 0.5rem;
+}
+
+@keyframes fireShake {
+    0%, 100% { transform: rotate(-5deg); }
+    50% { transform: rotate(5deg); }
+}
+
+/* 토스트 메시지 */
+.toast {
+    position: fixed;
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.9);
+    padding: 1rem 1.5rem;
+    border-radius: 10px;
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+    z-index: 300;
+}
+
+.success-toast {
+    border: 1px solid #42c767;
+}
+
+.error-toast {
+    border: 1px solid #ff4458;
+}
+
+.toast-icon {
+    font-size: 1.2rem;
+}
+
+.toast-message {
+    color: #fff;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+    .review-header {
+        padding: 0.75rem;
+    }
+    
+    .action-button {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .star {
+        font-size: 1.75rem;
+    }
+}
+
+@media (min-width: 769px) {
+    .video-player video {
+        max-width: 500px;
+        margin: 0 auto;
+    }
+    
+    .video-info-overlay {
+        max-width: 500px;
+        margin: 0 auto;
+    }
+}
