@@ -1,0 +1,29 @@
+{
+  "name": "contents-helper",
+  "version": "1.0.0",
+  "description": "Gamified content creation platform for teams",
+  "main": "index.html",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "serve": "npx http-server -p 8000"
+  },
+  "keywords": [
+    "content-creation",
+    "gamification",
+    "team-collaboration",
+    "video-platform"
+  ],
+  "author": "Contents Helper Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/contents-helper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/contents-helper/issues"
+  },
+  "homepage": "https://github.com/yourusername/contents-helper#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

@@ -225,12 +225,40 @@ function displayVideo(video) {
     const playerDiv = document.getElementById('videoPlayer');
     const controlsDiv = document.getElementById('reviewControls');
     
+    console.log('비디오 표시 시작:', video);
+    console.log('비디오 URL:', video.video_url);
+    
     // 비디오 소스 설정
     videoElement.src = video.video_url;
+    
+    // 비디오 이벤트 리스너 추가
+    videoElement.onloadedmetadata = () => {
+        console.log('비디오 메타데이터 로드 완료');
+    };
+    
+    videoElement.oncanplay = () => {
+        console.log('비디오 재생 준비 완료');
+    };
+    
+    videoElement.onerror = (e) => {
+        console.error('비디오 로드 에러:', e);
+        console.error('에러 타입:', videoElement.error);
+        // 비디오 에러 시 다음 비디오로 이동
+        showError('비디오를 재생할 수 없습니다. 다음 비디오로 이동합니다.');
+        setTimeout(() => loadNextVideo(), 2000);
+    };
+    
     videoElement.load();
     
     // 비디오 정보 표시 (사용자 정보 숨김)
     document.getElementById('videoTitle').textContent = video.title || 'Video không có tiêu đề';
+    
+    // 비디오 재생 시도
+    videoElement.play().catch(e => {
+        console.log('자동 재생 실패, 음소거 후 재시도:', e);
+        videoElement.muted = true;
+        videoElement.play();
+    });
     
     // 태그 표시
     const tagsContainer = document.getElementById('videoTags');
