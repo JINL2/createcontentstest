@@ -2240,7 +2240,7 @@ async function loadPerformanceData(period) {
                 statsGrid.insertAdjacentHTML('afterend', `
                     <div class="empty-state-message" style="text-align: center; padding: 2rem; color: var(--text-secondary); background: var(--background-color); border-radius: 12px; margin-top: 1rem;">
                         <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">🎬 Chưa có hoạt động nào hôm nay!</p>
-                        <p>Hãy là người đầu tiên tạo nội dung hôm nay!</p>
+                        <p>Hãy là người đầu tiên tạo nội dung hôm nay!</p>
                     </div>
                 `);
             }

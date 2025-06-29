@@ -2,23 +2,7 @@
 const { createClient } = supabase;
 const supabaseClient = createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
 
-// 카테고리와 감정 이모지 매핑
-const CATEGORY_EMOJI = {
-    '일상': '🏠',     // 집
-    '음식': '🍴',     // 접시
-    '패션': '👗',     // 드레스
-    '뷰티': '💄',     // 립스틱
-    '여행': '✈️',      // 비행기
-    '정보': '💡'      // 전구
-};
-
-const EMOTION_EMOJI = {
-    '기쁨': '😄',     // 웃는 얼굴
-    '놀람': '😲',     // 놀란 얼굴
-    '감동': '🥹',     // 눈물 흘리는 얼굴
-    '재미': '😆',     // 크게 웃는 얼굴
-    '유용': '👍'      // 엄지척
-};
+// CATEGORY_EMOJI와 EMOTION_EMOJI는 config.js에서 가져옵니다
 
 // 전역 상태 관리
 let currentState = {
@@ -32,7 +16,20 @@ let currentState = {
     dailyTarget: 20,
     earnedPoints: 0,
     reviewStreak: 0,
-    lastRating: null
+    lastRating: null,
+    videoLoaded: false,  // 비디오 로드 상태
+    videoPlayTime: 0,    // 비디오 재생 시간
+    minWatchTime: 3,     // 최소 시청 시간 (초)
+    retryCount: 0,       // 재시도 횟수
+    maxRetries: 3,       // 최대 재시도 횟수
+    videoStartTime: null, // 비디오 시작 시간
+    actualWatchTime: 0,   // 실제 시청 시간
+    transitioning: false,  // 전환 중 플래그
+    integrityViolations: 0, // 무결성 위반 횟수
+    videoCanPlay: false,  // 비디오 재생 가능 상태
+    videoErrorCount: 0,   // 비디오 에러 발생 횟수
+    integrityCheckInterval: null, // 무결성 체크 인터벌 ID
+    errorVideos: []      // 에러가 발생한 비디오 ID 목록
 };
 
 // URL 파라미터 파싱
@@ -78,6 +75,78 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // 별점 이벤트 리스너
     setupStarRating();
+    
+    // 무결성 체크 인터벌 (1초마다)
+    currentState.integrityCheckInterval = setInterval(() => {
+        const videoElement = document.getElementById('reviewVideo');
+        const controlsDiv = document.getElementById('reviewControls');
+        const playerDiv = document.getElementById('videoPlayer');
+        const stars = document.querySelectorAll('.star');
+        
+        // 비디오 엘리먼트 상태 체크
+        const hasError = videoElement && videoElement.error;
+        const currentTime = videoElement ? videoElement.currentTime : 0;
+        const canRate = currentState.videoCanPlay && currentTime >= currentState.minWatchTime;
+        
+        // 비디오 에러가 있을 때만 숨김
+        if (hasError) {
+            if (playerDiv && playerDiv.style.display !== 'none') {
+                playerDiv.style.display = 'none';
+                console.warn('비디오 에러로 인한 플레이어 숨김');
+            }
+            if (controlsDiv && controlsDiv.style.display !== 'none') {
+                controlsDiv.style.display = 'none';
+            }
+            
+            // 별점 클릭 이벤트 제거
+            stars.forEach(star => {
+                star.style.pointerEvents = 'none';
+            });
+        } else if (currentState.videoCanPlay) {
+            // 비디오가 정상적으로 재생 가능하면 UI 표시
+            if (playerDiv && playerDiv.style.display === 'none' && !hasError) {
+                playerDiv.style.display = 'block';
+            }
+            if (controlsDiv && controlsDiv.style.display === 'none' && !hasError) {
+                controlsDiv.style.display = 'flex';
+            }
+            
+            // 3초 이상 시청했으면 별점 활성화
+            if (canRate) {
+                stars.forEach(star => {
+                    star.style.pointerEvents = 'auto';
+                    star.style.opacity = '1';
+                    star.style.cursor = 'pointer';
+                });
+            } else {
+                // 3초 미만일 때는 비활성화 상태로 표시
+                stars.forEach(star => {
+                    star.style.pointerEvents = 'none';
+                    star.style.opacity = '0.3';
+                    star.style.cursor = 'not-allowed';
+                });
+            }
+        }
+        
+        // 비디오 에러 감지 시 즉시 다음으로
+        if (hasError && !currentState.transitioning) {
+            currentState.transitioning = true;
+            console.error('비디오 재생 불가, 다음 비디오로 이동');
+            // 에러 메시지 표시
+            showVideoError('Video không thể phát. Đang chuyển sang video khác...');
+            setTimeout(() => {
+                currentState.transitioning = false;
+                loadNextVideo();
+            }, 2000);
+        }
+    }, 1000);
+    
+    // 페이지 언로드 시 인터벌 정리
+    window.addEventListener('beforeunload', () => {
+        if (currentState.integrityCheckInterval) {
+            clearInterval(currentState.integrityCheckInterval);
+        }
+    });
     
     // 첫 비디오 로드
     await loadNextVideo();
@@ -181,8 +250,34 @@ async function loadNextVideo() {
             return;
         }
         
-        // 첫 번째 비디오 선택
-        currentState.currentVideo = unreviewed[0];
+        // 에러가 발생하지 않은 비디오만 필터링
+        const playableVideos = unreviewed.filter(v => !currentState.errorVideos.includes(v.id));
+        
+        console.log(`재생 가능한 비디오: ${playableVideos.length}개`);
+        console.log(`에러 비디오: ${currentState.errorVideos.length}개`);
+        
+        // 재생 가능한 비디오가 없으면 빈 상태 표시
+        if (playableVideos.length === 0) {
+            console.log('재생 가능한 비디오가 없습니다.');
+            showEmptyState();
+            return;
+        }
+        
+        // 비디오 큐가 비어있으면 재생 가능한 비디오로 채우기
+        if (!currentState.videoQueue || currentState.videoQueue.length === 0) {
+            currentState.videoQueue = [...playableVideos];
+            currentState.retryCount = 0; // 재시도 횟수 초기화
+        }
+        
+        // 큐가 비었으면 빈 상태 표시
+        if (currentState.videoQueue.length === 0) {
+            console.log('모든 비디오를 시도했습니다.');
+            showEmptyState();
+            return;
+        }
+        
+        // 첫 번째 비디오 선택 및 큐에서 제거
+        currentState.currentVideo = currentState.videoQueue.shift();
         displayVideo(currentState.currentVideo);
         
     } catch (error) {
@@ -228,37 +323,133 @@ function displayVideo(video) {
     console.log('비디오 표시 시작:', video);
     console.log('비디오 URL:', video.video_url);
     
+    // 비디오 상태 초기화
+    currentState.videoLoaded = false;
+    currentState.videoCanPlay = false;
+    currentState.videoPlayTime = 0;
+    currentState.videoErrorCount = 0;
+    currentState.videoStartTime = null;
+    currentState.actualWatchTime = 0;
+    currentState.ratingEnabled = false;
+    
+    // 평가 컨트롤 초기화
+    disableRating();
+    
+    // UI 초기 상태 설정 (비디오는 표시하되 컨트롤은 비활성화)
+    playerDiv.style.display = 'block';
+    controlsDiv.style.display = 'flex';
+    
     // 비디오 소스 설정
     videoElement.src = video.video_url;
+    
+    // 모든 이벤트 리스너 제거 (중복 방지)
+    videoElement.onloadedmetadata = null;
+    videoElement.oncanplay = null;
+    videoElement.oncanplaythrough = null;
+    videoElement.onplay = null;
+    videoElement.onpause = null;
+    videoElement.onerror = null;
+    videoElement.ontimeupdate = null;
     
     // 비디오 이벤트 리스너 추가
     videoElement.onloadedmetadata = () => {
         console.log('비디오 메타데이터 로드 완료');
+        currentState.videoLoaded = true;
     };
     
     videoElement.oncanplay = () => {
         console.log('비디오 재생 준비 완료');
+        currentState.videoCanPlay = true;
+        
+        // 비디오가 재생 가능하고 에러가 없으면 UI 표시
+        if (!videoElement.error && currentState.videoErrorCount === 0) {
+            playerDiv.style.display = 'block';
+            controlsDiv.style.display = 'flex';
+            
+            // 초기에는 별점 비활성화 상태로 표시
+            const stars = document.querySelectorAll('.star');
+            stars.forEach(star => {
+                star.style.opacity = '0.3';
+                star.style.cursor = 'not-allowed';
+            });
+            
+            // 자동 재생 시도
+            videoElement.play().catch(e => {
+                console.log('자동 재생 실패, 음소거 후 재시도:', e);
+                videoElement.muted = true;
+                videoElement.play().catch(err => {
+                    console.error('음소거 후도 재생 실패:', err);
+                    currentState.videoErrorCount++;
+                    showVideoError('Video không thể phát. Đang chuyển sang video khác...');
+                    setTimeout(() => loadNextVideo(), 2000);
+                });
+            });
+        }
+    };
+    
+    // 재생 시간 추적 (더 정확하게)
+    videoElement.ontimeupdate = () => {
+        if (videoElement.currentTime > 0 && !videoElement.paused && !videoElement.ended) {
+            currentState.actualWatchTime = videoElement.currentTime;
+            
+            // 최소 시청 시간 충족 시 평가 활성화
+            if (currentState.actualWatchTime >= currentState.minWatchTime && currentState.videoCanPlay) {
+                enableRating();
+            }
+        }
+    };
+    
+    // 비디오 재생 시작 추적
+    videoElement.onplay = () => {
+        if (!currentState.videoStartTime) {
+            currentState.videoStartTime = Date.now();
+        }
+        console.log('비디오 재생 시작');
+    };
+    
+    videoElement.onpause = () => {
+        console.log('비디오 일시정지');
     };
     
     videoElement.onerror = (e) => {
         console.error('비디오 로드 에러:', e);
         console.error('에러 타입:', videoElement.error);
-        // 비디오 에러 시 다음 비디오로 이동
-        showError('비디오를 재생할 수 없습니다. 다음 비디오로 이동합니다.');
-        setTimeout(() => loadNextVideo(), 2000);
+        console.error('에러 비디오 ID:', currentState.currentVideo.id);
+        
+        currentState.videoErrorCount++;
+        currentState.videoCanPlay = false;
+        currentState.videoLoaded = false;
+        
+        // 에러가 발생한 비디오 ID를 목록에 추가
+        if (currentState.currentVideo && !currentState.errorVideos.includes(currentState.currentVideo.id)) {
+            currentState.errorVideos.push(currentState.currentVideo.id);
+            console.log('에러 비디오 목록에 추가:', currentState.currentVideo.id);
+        }
+        
+        // 비디오 에러 시 UI 숨기기
+        playerDiv.style.display = 'none';
+        controlsDiv.style.display = 'none';
+        
+        // 재시도 횟수 체크
+        currentState.retryCount++;
+        
+        // 비디오 영역에 에러 메시지 표시
+        showVideoError(`Video không thể phát. Đang thử video khác... (${currentState.errorVideos.length} video lỗi)`);
+        
+        // 2초 후 다음 비디오로 이동
+        setTimeout(() => {
+            currentState.transitioning = false;
+            loadNextVideo();
+        }, 2000);
+        
+        return; // 에러 시 더 이상 진행하지 않음
     };
     
+    // 비디오 로드
     videoElement.load();
     
     // 비디오 정보 표시 (사용자 정보 숨김)
     document.getElementById('videoTitle').textContent = video.title || 'Video không có tiêu đề';
-    
-    // 비디오 재생 시도
-    videoElement.play().catch(e => {
-        console.log('자동 재생 실패, 음소거 후 재시도:', e);
-        videoElement.muted = true;
-        videoElement.play();
-    });
     
     // 태그 표시
     const tagsContainer = document.getElementById('videoTags');
@@ -267,9 +458,7 @@ function displayVideo(video) {
         `<span class="video-tag">#${tag}</span>`
     ).join('');
     
-    // UI 표시
-    playerDiv.style.display = 'block';
-    controlsDiv.style.display = 'flex';
+    // UI는 oncanplay 이벤트에서 표시됨
     
     // 별점 초기화
     resetStarRating();
@@ -290,17 +479,111 @@ function getRelativeTime(timestamp) {
     return `${days} ngày trước`;
 }
 
+// 평가 비활성화
+function disableRating() {
+    const stars = document.querySelectorAll('.star');
+    stars.forEach(star => {
+        star.style.opacity = '0.3';
+        star.style.cursor = 'not-allowed';
+    });
+    
+    // 안내 메시지 표시
+    const hint = document.querySelector('.rating-hint');
+    if (hint) {
+        hint.textContent = `Xem ít nhất ${currentState.minWatchTime} giây để đánh giá`;
+        hint.style.color = '#ff6b35';
+    }
+}
+
+// 평가 활성화
+function enableRating() {
+    // 비디오가 정상적으로 재생 중인지 최종 확인
+    const videoElement = document.getElementById('reviewVideo');
+    if (!videoElement || videoElement.error || !currentState.videoCanPlay) {
+        console.error('평가 활성화 실패: 비디오 상태 불량');
+        return;
+    }
+    
+    const stars = document.querySelectorAll('.star');
+    stars.forEach(star => {
+        star.style.opacity = '1';
+        star.style.cursor = 'pointer';
+        star.style.pointerEvents = 'auto';
+    });
+    
+    // 안내 메시지 복원
+    const hint = document.querySelector('.rating-hint');
+    if (hint) {
+        hint.textContent = 'Đánh giá để nhận +5 điểm';
+        hint.style.color = '';
+    }
+    
+    // 성공 메시지는 한 번만 표시
+    if (!currentState.ratingEnabled) {
+        currentState.ratingEnabled = true;
+        showSuccess('Bạn đã có thể đánh giá video!');
+    }
+}
+
 // 별점 평가 설정
 function setupStarRating() {
     const stars = document.querySelectorAll('.star');
     
     stars.forEach(star => {
-        star.addEventListener('click', function() {
+        star.addEventListener('click', function(e) {
+            // 무결성 다중 체크
+            const videoElement = document.getElementById('reviewVideo');
+            const controlsDiv = document.getElementById('reviewControls');
+            
+            // 1. 비디오 엘리먼트 체크
+            if (!videoElement || videoElement.error || videoElement.readyState < 2) {
+                showError('Video chưa được tải đúng cách!');
+                currentState.integrityViolations++;
+                console.error('무결성 위반: 비디오 엘리먼트 상태 불량');
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            
+            // 2. 컨트롤 표시 상태 체크
+            if (!controlsDiv || controlsDiv.style.display === 'none') {
+                showError('Lỗi hiển thị giao diện!');
+                currentState.integrityViolations++;
+                console.error('무결성 위반: 컨트롤 미표시 상태에서 클릭');
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            
+            // 3. 비디오 재생 가능 상태 체크
+            if (!currentState.videoCanPlay) {
+                showError('Video chưa sẵn sàng!');
+                return;
+            }
+            
+            // 4. 실제 시청 시간 체크 (currentTime 사용)
+            if (videoElement.currentTime < currentState.minWatchTime) {
+                alert(`❌ 비디오를 ${currentState.minWatchTime}초 이상 시청해야 평가할 수 있습니다!`);
+                return;
+            }
+            
+            // 5. 비디오 URL 체크
+            if (!currentState.currentVideo || !currentState.currentVideo.video_url) {
+                showError('Không tìm thấy video!');
+                currentState.integrityViolations++;
+                console.error('무결성 위반: 비디오 정보 없음');
+                return;
+            }
+            
             const rating = parseInt(this.dataset.rating);
             selectRating(rating);
         });
         
         star.addEventListener('mouseenter', function() {
+            const videoElement = document.getElementById('reviewVideo');
+            if (!currentState.videoCanPlay || videoElement.currentTime < currentState.minWatchTime) {
+                return;
+            }
             const rating = parseInt(this.dataset.rating);
             highlightStars(rating);
         });
@@ -349,11 +632,55 @@ function resetStarRating() {
 async function submitRating(rating) {
     if (!currentState.currentVideo) return;
     
+    // 강화된 무결성 검증
+    const videoElement = document.getElementById('reviewVideo');
+    const controlsDiv = document.getElementById('reviewControls');
+    
+    // 1. 비디오 엘리먼트 검증
+    if (!videoElement || videoElement.error || videoElement.readyState < 2) {
+        showError('Video không hợp lệ!');
+        currentState.integrityViolations++;
+        console.error('무결성 위반: 평가 제출 시 비디오 상태 불량');
+        // 즉시 다음 비디오로
+        setTimeout(() => loadNextVideo(), 1000);
+        return;
+    }
+    
+    // 2. 실제 재생 시간 검증 (currentTime 사용)
+    const currentTime = videoElement.currentTime || 0;
+    if (currentTime < currentState.minWatchTime) {
+        showError(`Video phải được xem ít nhất ${currentState.minWatchTime} giây!`);
+        currentState.integrityViolations++;
+        console.error('무결성 위반: 실제 재생 시간 부족', currentTime);
+        return;
+    }
+    
+    // 3. 비디오 재생 가능 상태 검증
+    if (!currentState.videoCanPlay) {
+        showError('Video chưa sẵn sàng!');
+        currentState.integrityViolations++;
+        return;
+    }
+    
+    // 4. 컨트롤 표시 상태 검증
+    if (!controlsDiv || controlsDiv.style.display === 'none') {
+        showError('Lỗi giao diện!');
+        currentState.integrityViolations++;
+        return;
+    }
+    
+    // 5. 무결성 위반 횟수 체크
+    if (currentState.integrityViolations > 3) {
+        showError('Phát hiện hành vi bất thường. Vui lòng tải lại trang.');
+        setTimeout(() => window.location.reload(), 2000);
+        return;
+    }
+    
     // 평가 애니메이션
     const player = document.getElementById('videoPlayer');
     player.classList.add('fade-out');
     
-    // 리뷰 저장
+    // 리뷰 저장 (개선된 메타데이터 포함)
     await saveReview('rate', rating, null);
     
     // 포인트 애니메이션
@@ -368,6 +695,15 @@ async function submitRating(rating) {
         await addBonusPoints(20);
     }
     
+    // 상태 초기화
+    currentState.videoLoaded = false;
+    currentState.videoCanPlay = false;
+    currentState.videoPlayTime = 0;
+    currentState.videoStartTime = null;
+    currentState.actualWatchTime = 0;
+    currentState.retryCount = 0;
+    currentState.videoErrorCount = 0;
+    
     // 다음 비디오
     setTimeout(() => {
         player.classList.remove('fade-out');
@@ -380,6 +716,8 @@ async function saveReview(action, rating, comment) {
     if (!currentState.currentVideo) return;
     
     try {
+        const videoElement = document.getElementById('reviewVideo');
+        
         // reviewer_id를 전달하지 않고 metadata에 user_id 저장
         const reviewData = {
             video_id: currentState.currentVideo.id,
@@ -391,7 +729,19 @@ async function saveReview(action, rating, comment) {
                 actual_user_id: currentState.userId,  // 실제 user_id를 metadata에 저장
                 reviewer_name: currentState.userName,
                 company_id: currentState.companyId,
-                store_id: currentState.storeId
+                store_id: currentState.storeId,
+                // 무결성 검증을 위한 추가 데이터
+                watch_time: Math.floor(videoElement.currentTime || 0),
+                actual_watch_time: currentState.actualWatchTime,
+                video_duration: videoElement.duration || 0,
+                watch_percentage: videoElement.duration ? (videoElement.currentTime / videoElement.duration) * 100 : 0,
+                video_loaded: currentState.videoLoaded,
+                video_can_play: currentState.videoCanPlay,
+                video_url: currentState.currentVideo.video_url,
+                timestamp: new Date().toISOString(),
+                browser_info: navigator.userAgent,
+                integrity_violations: currentState.integrityViolations,
+                video_error_count: currentState.videoErrorCount
             }
         };
         
@@ -491,6 +841,46 @@ function showEmptyState() {
     document.getElementById('videoPlayer').style.display = 'none';
     document.getElementById('reviewControls').style.display = 'none';
     document.getElementById('commentSection').style.display = 'none';
+    
+    // 재시도 횟수에 따른 메시지 변경
+    const emptyStateDiv = document.getElementById('emptyState');
+    if (currentState.retryCount >= currentState.maxRetries) {
+        // 재시도 실패로 인한 종료
+        emptyStateDiv.innerHTML = `
+            <div class="empty-icon">⚠️</div>
+            <h3>Không thể tải video</h3>
+            <p>Đã thử ${currentState.maxRetries} lần nhưng không thể tải video.</p>
+            <p>Vui lòng kiểm tra kết nối mạng và thử lại sau.</p>
+            <p class="countdown-text">Tự động quay lại sau <span id="countdown">5</span> giây...</p>
+            <button class="btn btn-primary" onclick="goBack()">Quay lại trang chính</button>
+        `;
+    } else {
+        // 모든 비디오 평가 완료
+        emptyStateDiv.innerHTML = `
+            <div class="empty-icon">🎬</div>
+            <h3>Không còn video để đánh giá</h3>
+            <p>Bạn đã đánh giá tất cả video của công ty!</p>
+            <p>Hãy quay lại sau khi có video mới.</p>
+            <p class="countdown-text">Tự động quay lại sau <span id="countdown">5</span> giây...</p>
+            <button class="btn btn-primary" onclick="goBack()">Quay lại trang chính</button>
+        `;
+    }
+    
+    // 카운트다운 및 자동 리다이렉트
+    let countdown = 5;
+    const countdownElement = document.getElementById('countdown');
+    
+    const countdownInterval = setInterval(() => {
+        countdown--;
+        if (countdownElement) {
+            countdownElement.textContent = countdown;
+        }
+        
+        if (countdown <= 0) {
+            clearInterval(countdownInterval);
+            goBack();
+        }
+    }, 1000);
 }
 
 function showPointsAnimation(points) {
@@ -533,6 +923,53 @@ function showError(message) {
     }, 3000);
 }
 
+// 비디오 에러 전용 표시 함수 - 화면 하단에 토스트 형태로 표시
+function showVideoError(message) {
+    // 기존 에러 메시지가 있으면 제거
+    let existingError = document.getElementById('videoErrorMessage');
+    if (existingError) {
+        existingError.remove();
+    }
+    
+    // 에러 메시지 div를 body에 추가
+    const errorDiv = document.createElement('div');
+    errorDiv.id = 'videoErrorMessage';
+    errorDiv.style.cssText = `
+        position: fixed;
+        bottom: 140px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.95);
+        color: #fff;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        border: 1px solid #ff4458;
+        font-size: 14px;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        max-width: 90%;
+        animation: slideUp 0.3s ease-out;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    `;
+    
+    errorDiv.innerHTML = `<span style="font-size: 1.2rem;">⚠️</span> <span>${message}</span>`;
+    document.body.appendChild(errorDiv);
+    
+    // 3초 후 자동 숨김 (2초는 너무 짧음)
+    setTimeout(() => {
+        if (errorDiv && errorDiv.parentNode) {
+            errorDiv.style.animation = 'slideDown 0.3s ease-out';
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                }
+            }, 300);
+        }
+    }, 3000);
+}
+
 // 뒤로가기
 function goBack() {
     const params = new URLSearchParams();
@@ -546,3 +983,15 @@ function goBack() {
 
 // 전역 함수로 내보내기
 window.goBack = goBack;
+
+// 페이지 이탈 시 기록
+window.addEventListener('beforeunload', () => {
+    if (currentState.currentVideo && !currentState.lastRating) {
+        // 평가하지 않고 이탈한 경우 기록
+        console.log('비디오 시청 후 평가 없이 이탈:', {
+            video_id: currentState.currentVideo.id,
+            watch_time: currentState.videoPlayTime,
+            actual_watch_time: currentState.actualWatchTime
+        });
+    }
+});
