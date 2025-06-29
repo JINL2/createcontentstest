@@ -40,7 +40,8 @@
 
             <!-- 비디오 플레이어 -->
             <div class="video-player" id="videoPlayer" style="display: none;">
-                <video id="reviewVideo" autoplay muted playsinline loop crossorigin="anonymous" preload="auto"></video>
+                <!-- 단순화된 비디오 엘리먼트 -->
+                <video id="reviewVideo" controls style="width: 100%; height: 100%;"></video>
                 
                 <!-- 비디오 정보 오버레이 -->
                 <div class="video-info-overlay">
@@ -59,7 +60,6 @@
                 <h3>Không còn video để đánh giá</h3>
                 <p>Bạn đã đánh giá tất cả video của công ty!</p>
                 <p>Hãy quay lại sau khi có video mới.</p>
-                <p class="countdown-text">Tự động quay lại sau <span id="countdown">5</span> giây...</p>
                 <button class="btn btn-primary" onclick="goBack()">Quay lại trang chính</button>
             </div>
         </div>
@@ -113,6 +113,6 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="video-review.js"></script>
+    <script src="video-review-simple.js"></script>
 </body>
 </html>
